@@ -1,0 +1,75 @@
+---
+title: "FigureYa1 SurvivalCurve"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+小丫画图出品 2018.4.29
+
+微信ID: epigenomics  Email: epigenomics@rainbow-genome.com
+
+### 需求描述
+网上搜到过代码，但是都是用TCGA自己带的肺癌数据画的，我需要用自己的数据绘制
+
+### 使用场景
+展示分类样本的生存曲线
+  
+场景一：患者的生存期跟基因变异的关系
+  
+场景二：药物处理导致模式动物生存期变化
+
+### 输入数据
+需求方提供的输入数据格式
+
+```{r cars}
+svData<-read.delim(file="survival_input.txt",header=T,as.is=T)
+head(svData)
+tail(svData)
+```
+
+### 输入数据的格式化
+画图用的数据结构是一个包含样本分类、生存期和追踪情况的数据框。
+  
+测试用数据的生存期是Months列，样本分类和追踪情况揉在第2和3列中，1代表death，0代表alive，NA和1/0代表样本分类，因此，样本分类和追踪情况需要重新生成
+
+```{r}
+svData$Expression<-NA
+svData$Expression[!is.na(svData$PD.L1.protein.high.expression)]<-"high"
+svData$Expression[is.na(svData$PD.L1.protein.high.expression)]<-"low"
+svData$Status<-1+(!is.na(svData$PD.L1.protein.high.expression|svData$PD.L1.protein.low.expression))
+head(svData[,c(1,4,5)])
+write.table(svData[,c(1,4,5)],file="easy_input.txt",sep = "\t",col.names = T,row.names = F,quote = F)
+```
+
+可以看到重新生成后，svData中生存期、样本分类和追踪情况分别是Months、Expression、Status列。
+
+多说一句，追踪信息遵循的规则是，The status indicator, normally 0=alive, 1=dead. Other choices are TRUE/FALSE (TRUE = death) or 1/2 (2=death)
+
+如果输入文件格式跟easy_input.txt相符，就跳过上面调整格式的步骤。
+
+### 开始画图
+常见调整参数有颜色、线的类型、是否显示置信区间等
+
+用?ggsurvplot查看更多参数设置
+
+```{r}
+#install.packages(c("survival","survminer"))
+library("survival")
+library("survminer")
+
+fit<- survfit(Surv(Months, Status) ~ Expression, data = svData)
+ggsurvplot(fit, pval = TRUE,linetype = c("solid", "dashed"), #线的类型
+           palette = c("blue","red"),#线的颜色
+           legend.title="",legend=c(0.7,0.9),legend.labs=c("High-expression","low-expression"),
+           conf.int = F) #不显示置信区间
+ggsurvplot(fit, pval = TRUE, linetype = "solid",  
+           palette =c("blue","red"),
+           legend.title="",legend=c(0.7,0.9),legend.labs=c("High-expression","low-expression"),
+           conf.int = T,#显示置信区间
+           conf.int.style="ribbon",#展示方式
+           conf.int.alpha=0.1)#透明度
+ggsave(file="survivalcurve.pdf")
+```
+输出的pdf文件是矢量图，可以在Illustrator等软件里进行字体、字号等编辑操作
